@@ -22,7 +22,7 @@ from collections import defaultdict
 def make_vocab():
     vocab = dict()
     for f in [train_file, test_file]:
-        for line in open(f):
+        for line in open(f, encoding="utf8"):
             sent = list(''.join(line.rstrip().split(' ')))
             for i in range(window//2 + 3-1):
                 sent.append('</s>')
@@ -318,7 +318,7 @@ def epoch_test(char2id, model, epoch):
     line_cnt = 0
     result_file = '{0}_{1}.txt'.format(result_raw.split('.txt')[0], epoch)
     cur_model_file = '{0}_{1}.model'.format(model_file.split('.model')[0], epoch)
-    for line in open(test_file):
+    for line in open(test_file, encoding="utf8"):
         line_cnt += 1
         hidden = chainer.Variable(np.zeros((1, hidden_units),\
                                                 dtype=np.float32))
@@ -334,7 +334,7 @@ def epoch_test(char2id, model, epoch):
             labels.append(label)
             dist, acc = forward_one(x, target, label, hidden, prev_c ,word_dict, train_flag=True)
             dists.append(dist)
-        with open(result_file, 'a') as test:
+        with open(result_file, 'a', encoding="utf8") as test:
             test.write("{0}\n".format(''.join(label2seq(x, dists))))
         labels = list()
     os.system('bash eval_japanese_ws.sh {0} {1} > temp'\
@@ -384,8 +384,9 @@ def label2seq(x, labels):
 if __name__ == '__main__':
     # reading config
     ini_file = sys.argv[1]
-    ini = configparser.SafeConfigParser()
+    ini = configparser.ConfigParser()
     ini.read(ini_file)
+    f = open(ini_file, "r")
     train_file = ini.get('Data', 'train')
     test_file = ini.get('Data', 'test')
     dict_file = ini.get('Data', 'dict')
