@@ -56,3 +56,7 @@ The explanation of each parameter is follows:
 
 # Author
 Yoshiaki Kitagawa
+
+
+# Data
+https://pj.ninjal.ac.jp/corpus_center/bccwj/en/

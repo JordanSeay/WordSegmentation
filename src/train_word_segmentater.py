@@ -13,6 +13,7 @@ import numpy as np
 import configparser
 import chainer
 import pickle
+import codecs
 from chainer import functions as F
 from chainer import optimizers
 from chainer import FunctionSet, Variable, cuda
@@ -22,11 +23,11 @@ from collections import defaultdict
 def make_vocab():
     vocab = dict()
     for f in [train_file, test_file]:
-        for line in open(f, encoding="utf8"):
+        for line in codecs.open(f, encoding="utf-8"):
             sent = list(''.join(line.rstrip().split(' ')))
             for i in range(window//2 + 3-1):
                 sent.append('</s>')
-                sent.insert(0,'<s>')
+                sent.insert(0, '<s>')
             for i in range(3-1, len(sent)-(3-1)+2):
                 uni_gram = sent[i]
                 bi_gram = sent[i-1] + sent[i]
@@ -36,16 +37,17 @@ def make_vocab():
                 if bi_gram not in vocab:
                     vocab[bi_gram] = len(vocab)
                 if tri_gram not in vocab:
-                   vocab[tri_gram] = len(vocab)
-    vocab['UNK'] = len(vocab) 
+                    vocab[tri_gram] = len(vocab)
+    vocab['UNK'] = len(vocab)
     return vocab
+
 
 def make_word_dict():
     words = list()
-    word2freq = defaultdict(lambda:0)
+    word2freq = defaultdict(lambda: 0)
     for f in [train_file]:
-    #for f in [train_file]:
-        for line in open(f):
+        # for f in [train_file]:
+        for line in codecs.open(f, encoding="utf-8"):
             ws = (line.rstrip().split(' '))
             for w in ws:
                 word2freq[w] += 1
@@ -53,10 +55,11 @@ def make_word_dict():
         if freq > 1:
             words.append(word)
     for f in [dict_file]:
-        for w in open(f):
-            words.append(w) 
+        for w in codecs.open(f, encoding="utf-8"):
+            words.append(w)
     words = set(words)
     return words
+
 
 def make_char_type(char):
     if re.match(u'[ぁ-ん]', char):
@@ -69,12 +72,13 @@ def make_char_type(char):
         return('alphabet')
     elif re.match(u'[0-9０-９]', char):
         return('number')
-    elif char=='<s>':
+    elif char == '<s>':
         return char
-    elif char=='</s>':
+    elif char == '</s>':
         return char
     else:
         return('other')
+
 
 def make_char_type2id():
     char_type2id = dict()
@@ -86,22 +90,27 @@ def make_char_type2id():
     char_type2id['other'] = len(char_type2id)
     char_type2id['<s>'] = len(char_type2id)
     char_type2id['</s>'] = len(char_type2id)
-    for one in ['hiragana','katakana','kanji','alphabet','number','other','<s>','</s>']:
-        for two in ['hiragana','katakana','kanji','alphabet','number','other','<s>','</s>']:
+    for one in ['hiragana', 'katakana', 'kanji', 'alphabet', 'number', 'other', '<s>', '</s>']:
+        for two in ['hiragana', 'katakana', 'kanji', 'alphabet', 'number', 'other', '<s>', '</s>']:
             char_type2id[one+two] = len(char_type2id)
-            for three in ['hiragana','katakana','kanji','alphabet','number','other','<s>','</s>']:
+            for three in ['hiragana', 'katakana', 'kanji', 'alphabet', 'number', 'other', '<s>', '</s>']:
                 char_type2id[one+two+three] = len(char_type2id)
     return char_type2id
+
 
 def init_model(vocab_size, char_type_size):
     model = FunctionSet(
         embed=F.EmbedID(vocab_size, embed_units),
-        char_type_embed = F.EmbedID(char_type_size, char_type_embed_units),
+        char_type_embed=F.EmbedID(char_type_size, char_type_embed_units),
         #dict_embed = F.Linear(12, dict_embed_units),
-        hidden1=F.Linear(window * (embed_units + char_type_embed_units)*3 + hidden_units, hidden_units),
-        i_gate=F.Linear(window * (embed_units + char_type_embed_units)*3 + hidden_units, hidden_units),
-        f_gate=F.Linear(window * (embed_units + char_type_embed_units)*3 + hidden_units, hidden_units),
-        o_gate=F.Linear(window * (embed_units + char_type_embed_units)*3 + hidden_units, hidden_units),
+        hidden1=F.Linear(
+            window * (embed_units + char_type_embed_units)*3 + hidden_units, hidden_units),
+        i_gate=F.Linear(window * (embed_units + char_type_embed_units)
+                        * 3 + hidden_units, hidden_units),
+        f_gate=F.Linear(window * (embed_units + char_type_embed_units)
+                        * 3 + hidden_units, hidden_units),
+        o_gate=F.Linear(window * (embed_units + char_type_embed_units)
+                        * 3 + hidden_units, hidden_units),
         output=F.Linear(hidden_units + 12, label_num),
     )
     if opt_selection == 'Adagrad':
@@ -116,10 +125,11 @@ def init_model(vocab_size, char_type_size):
     opt.setup(model)
     return model, opt
 
+
 def make_label(sent):
     labels = list()
     pre_char = ' '
-    if label_num == 2: # BI
+    if label_num == 2:  # BI
         for char in sent:
             if not char == ' ':
                 if pre_char == ' ':
@@ -127,10 +137,10 @@ def make_label(sent):
                 elif not pre_char == ' ':
                     labels.append(1)
             pre_char = char
-    elif label_num == 3: # B I S(single)
+    elif label_num == 3:  # B I S(single)
         for char in sent:
             if not char == ' ':
-                if pre_char == ' ': # B or S
+                if pre_char == ' ':  # B or S
                     try:
                         if not sent[sent.find(char)+1] == ' ':
                             labels.append(0)
@@ -138,13 +148,13 @@ def make_label(sent):
                             labels.append(2)
                     except(IndexError):
                         labels.append(2)
-                elif not pre_char == ' ': # I
+                elif not pre_char == ' ':  # I
                     labels.append(1)
             pre_char = char
-    elif label_num == 4: # B M E S
+    elif label_num == 4:  # B M E S
         for char in sent:
             if not char == ' ':
-                if pre_char == ' ': # B or S
+                if pre_char == ' ':  # B or S
                     try:
                         if not sent[sent.find(char)+1] == ' ':
                             labels.append(0)
@@ -152,7 +162,7 @@ def make_label(sent):
                             labels.append(3)
                     except(IndexError):
                         labels.append(3)
-                elif not pre_char == ' ': # E or M
+                elif not pre_char == ' ':  # E or M
                     try:
                         if sent[sent.find(char)+1] == ' ':
                             labels.append(2)
@@ -170,19 +180,20 @@ def train(char2id, model, optimizer):
         batch_count = 0
         accum_loss = 0
         line_cnt = 0
-        for line in open(train_file):
+        for line in codecs.open(train_file, encoding="utf-8"):
             line_cnt += 1
-            hidden = chainer.Variable(np.zeros((1, hidden_units),\
-                                                dtype=np.float32))
-            prev_c = chainer.Variable(np.zeros((1, hidden_units),\
-                                                     dtype=np.float32))
-            print("####epoch: {0} trainig sentence: {1}".format(epoch,\
-                                                 line_cnt), '\r', end='')
+            hidden = chainer.Variable(np.zeros((1, hidden_units),
+                                               dtype=np.float32))
+            prev_c = chainer.Variable(np.zeros((1, hidden_units),
+                                               dtype=np.float32))
+            print("####epoch: {0} trainig sentence: {1}".format(epoch,
+                                                                line_cnt), '\n', end='')
             x = ''.join(line.strip().split())
             t = make_label(line.strip())
             for target in range(len(x)):
                 label = t[target]
-                pred, loss = forward_one(x, target, label, hidden, prev_c, word_dict, True)
+                pred, loss = forward_one(
+                    x, target, label, hidden, prev_c, word_dict, True)
                 accum_loss += loss
             batch_count += 1
             if batch_count == batch_size:
@@ -192,17 +203,18 @@ def train(char2id, model, optimizer):
                 optimizer.update()
                 accum_loss = 0
                 batch_count = 0
-     
+
         if not batch_count == 0:
             optimizer.zero_grads()
             accum_loss.backward()
             optimizer.weight_decay(lam)
-            #clip flat やったほうがよいらしい
+            # clip flat やったほうがよいらしい
             optimizer.update()
             accum_loss = 0
             batch_count = 0
         epoch_test(char2id, model, epoch)
     print('\nTraining Done!')
+
 
 def forward_one(x, target, label, hidden, prev_c, word_dict, train_flag):
     # make dict feature vector
@@ -235,7 +247,7 @@ def forward_one(x, target, label, hidden, prev_c, word_dict, train_flag):
                 R4 = 1
         if i == 10:
             break
-    
+
     for i in range(1, 6, 1):
         for j in range(1, 6, 1):
             word_candidate = x[target-i:target+j]
@@ -248,24 +260,26 @@ def forward_one(x, target, label, hidden, prev_c, word_dict, train_flag):
                     I3 = 1
                 else:
                     I4 = 1
-    dict_vec = chainer.Variable(np.array([[L1,L2,L3,L4,R1,R2,R3,R4,I1,I2,I3,I4]], dtype=np.float32))
+    dict_vec = chainer.Variable(
+        np.array([[L1, L2, L3, L4, R1, R2, R3, R4, I1, I2, I3, I4]], dtype=np.float32))
     # dict_embed_vec = model.dict_embed(dict_vec)
     # make input window vector
-    distance =  window // 2
+    distance = window // 2
     s_num = 3-1 + window // 2
     char_vecs = list()
     char_type_vecs = list()
     x = list(x)
     for i in range(s_num):
         x.append('</s>')
-        x.insert(0,'<s>')
+        x.insert(0, '<s>')
     for i in range(-distance, distance+1):
 
-    # make char vector 
+        # make char vector
         # import char
         uni_gram = x[target+s_num+i]
         bi_gram = x[target+s_num-1+i] + x[target+s_num+i]
-        tri_gram = x[target+s_num-2+i] + x[target+s_num-1+i] + x[target+s_num+i]
+        tri_gram = x[target+s_num-2+i] + \
+            x[target+s_num-1+i] + x[target+s_num+i]
         # char2id
         uni_gram_id = char2id[uni_gram]
         bi_gram_id = char2id[bi_gram]
@@ -278,14 +292,16 @@ def forward_one(x, target, label, hidden, prev_c, word_dict, train_flag):
         char_vecs.append(uni_gram_vec)
         char_vecs.append(bi_gram_vec)
         char_vecs.append(tri_gram_vec)
-    # make char type vector 
+    # make char type vector
         # import char type
         uni_gram_type = make_char_type(uni_gram)
-        bi_gram_type = make_char_type(x[target+s_num-1+i]) + make_char_type(x[target+s_num+i])
-        tri_gram_type = make_char_type(x[target+s_num-2+i]) + make_char_type(x[target+s_num+i] + make_char_type(x[target+s_num-2+i]))
+        bi_gram_type = make_char_type(
+            x[target+s_num-1+i]) + make_char_type(x[target+s_num+i])
+        tri_gram_type = make_char_type(x[target+s_num-2+i]) + make_char_type(
+            x[target+s_num+i] + make_char_type(x[target+s_num-2+i]))
         # chartype 2 id
         uni_gram_type_id = char_type2id[uni_gram_type]
-        bi_gram_type_id =  char_type2id[bi_gram_type]
+        bi_gram_type_id = char_type2id[bi_gram_type]
         tri_gram_type_id = char_type2id[tri_gram_type]
         # id 2 embedding
         uni_gram_type_vec = model.char_type_embed(get_onehot(uni_gram_type_id))
@@ -313,40 +329,44 @@ def forward_one(x, target, label, hidden, prev_c, word_dict, train_flag):
     #print(output.data, correct.data)
     return np.argmax(dist.data), F.softmax_cross_entropy(output, correct)
 
+
 def epoch_test(char2id, model, epoch):
     labels = list()
     line_cnt = 0
     result_file = '{0}_{1}.txt'.format(result_raw.split('.txt')[0], epoch)
-    cur_model_file = '{0}_{1}.model'.format(model_file.split('.model')[0], epoch)
-    for line in open(test_file, encoding="utf8"):
+    cur_model_file = '{0}_{1}.model'.format(
+        model_file.split('.model')[0], epoch)
+    for line in codecs.open(test_file, encoding="utf-8"):
         line_cnt += 1
-        hidden = chainer.Variable(np.zeros((1, hidden_units),\
-                                                dtype=np.float32))
-        prev_c = chainer.Variable(np.zeros((1, hidden_units),\
-                                                dtype=np.float32))
-        print('####epoch: {0} test and evaluation sentence: {1}####'\
-                        .format(epoch,line_cnt), '\r', end = '')
+        hidden = chainer.Variable(np.zeros((1, hidden_units),
+                                           dtype=np.float32))
+        prev_c = chainer.Variable(np.zeros((1, hidden_units),
+                                           dtype=np.float32))
+        print('####epoch: {0} test and evaluation sentence: {1}####'
+              .format(epoch, line_cnt), '\n', end='')
         x = ''.join(line.strip().split())
         t = make_label(line.strip())
         dists = list()
         for target in range(len(x)):
             label = t[target]
             labels.append(label)
-            dist, acc = forward_one(x, target, label, hidden, prev_c ,word_dict, train_flag=True)
+            dist, acc = forward_one(
+                x, target, label, hidden, prev_c, word_dict, train_flag=True)
             dists.append(dist)
-        with open(result_file, 'a', encoding="utf8") as test:
+        with codecs.open(result_file, 'a', encoding="utf-8") as test:
             test.write("{0}\n".format(''.join(label2seq(x, dists))))
         labels = list()
-    os.system('bash eval_japanese_ws.sh {0} {1} > temp'\
-                                            .format(result_file, test_file))
-    os.system('echo "####epoch{0} evaluation####" >> {1}'\
-                                            .format(epoch, evaluation))
+    os.system('bash eval_japanese_ws.sh {0} {1} > temp'
+              .format(result_file, test_file))
+    os.system('echo "####epoch{0} evaluation####" >> {1}'
+              .format(epoch, evaluation))
     os.system('cat temp >> {0}'.format(evaluation))
     os.system('rm temp')
-        #print('predict sequence:', ''.join(label2seq(x,dists)))
-        #print('true sequence***:', line.strip())
+    #print('predict sequence:', ''.join(label2seq(x,dists)))
+    #print('true sequence***:', line.strip())
     with open(cur_model_file, 'wb') as o:
         pickle.dump(model, o)
+
 
 def get_onehot(num):
     return chainer.Variable(np.array([num], dtype=np.int32))
@@ -380,6 +400,7 @@ def label2seq(x, labels):
             else:
                 seq.append(x[i])
     return seq
+
 
 if __name__ == '__main__':
     # reading config
